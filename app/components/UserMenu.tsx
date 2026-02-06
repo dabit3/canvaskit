@@ -71,6 +71,7 @@ export default function UserMenu({ name, color, onUpdate, collaboratorCount }: U
             onBlur={handleSave}
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
             placeholder="Your Name"
+            maxLength={20}
           />
 
           <div className="text-[11px] text-white/50 mb-2 font-medium">COLOR</div>

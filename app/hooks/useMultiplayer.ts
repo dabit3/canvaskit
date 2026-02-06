@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { nanoid } from "nanoid";
 import { Collaborator } from "../types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -21,6 +20,11 @@ export function useMultiplayer() {
   const [collaborators, setCollaborators] = useState<Map<string, Collaborator>>(new Map());
   const [myProfile, setMyProfile] = useState<{ name: string; color: string } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+
+  // Store collaborators in a ref to avoid re-renders on every message
+  const collaboratorsRef = useRef<Map<string, Collaborator>>(new Map());
+
+  // My assigned ID from server
   const myIdRef = useRef<string>("");
 
   useEffect(() => {
@@ -39,9 +43,6 @@ export function useMultiplayer() {
       setMyProfile(newProfile);
       localStorage.setItem("canvas-profile", JSON.stringify(newProfile));
     }
-
-    // ID for this session
-    myIdRef.current = nanoid();
   }, []);
 
   useEffect(() => {
@@ -69,13 +70,17 @@ export function useMultiplayer() {
                 }
 
                 const msg = JSON.parse(event.data);
+
+                if (msg.type === 'init') {
+                  myIdRef.current = msg.id;
+                  return;
+                }
+
                 if (msg.type === 'presence') {
                     if (msg.id === myIdRef.current) return; // Ignore self
-                    setCollaborators(prev => {
-                        const next = new Map(prev);
-                        next.set(msg.id, msg);
-                        return next;
-                    });
+
+                    // Update the ref only
+                    collaboratorsRef.current.set(msg.id, msg);
                 }
             } catch {
                 // Ignore
@@ -89,8 +94,17 @@ export function useMultiplayer() {
 
     connect();
 
+    // Animation frame loop to sync ref to state at optimal framerate
+    let animationFrameId: number;
+    const syncState = () => {
+      setCollaborators(new Map(collaboratorsRef.current));
+      animationFrameId = requestAnimationFrame(syncState);
+    };
+    animationFrameId = requestAnimationFrame(syncState);
+
     return () => {
         wsRef.current?.close();
+        cancelAnimationFrame(animationFrameId);
     };
   }, [myProfile]);
 
@@ -98,27 +112,28 @@ export function useMultiplayer() {
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
-      setCollaborators(prev => {
-        let changed = false;
-        const next = new Map(prev);
-        for (const [id, c] of next) {
-          if (now - c.lastSeen > 30000) { // 30s timeout
-            next.delete(id);
-            changed = true;
-          }
+      const next = collaboratorsRef.current;
+      let changed = false;
+
+      for (const [id, c] of next) {
+        if (now - c.lastSeen > 30000) { // 30s timeout
+          next.delete(id);
+          changed = true;
         }
-        return changed ? next : prev;
-      });
+      }
+
+      // If changed, the next requestAnimationFrame will pick it up
+      // or we can force it here if strictly necessary, but the loop handles it.
     }, 5000);
     return () => clearInterval(interval);
   }, []);
 
   const sendPresence = useCallback((x: number, y: number) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !myProfile) return;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !myProfile || !myIdRef.current) return;
 
     const msg: Collaborator & { type: 'presence' } = {
         type: 'presence',
-        id: myIdRef.current,
+        id: myIdRef.current, // Use the server-assigned ID
         name: myProfile.name,
         color: myProfile.color,
         x,

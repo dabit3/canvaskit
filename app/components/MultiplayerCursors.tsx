@@ -45,7 +45,7 @@ export default function MultiplayerCursors({ collaborators }: MultiplayerCursors
           >
             <CursorIcon color={c.color} />
             <div
-              className="ml-3 mt-1 px-1.5 py-0.5 rounded text-[10px] text-white font-medium whitespace-nowrap shadow-sm"
+              className="ml-3 mt-1 px-1.5 py-0.5 rounded text-[10px] text-white font-medium whitespace-nowrap shadow-sm max-w-[100px] truncate"
               style={{ backgroundColor: c.color }}
             >
               {c.name}
