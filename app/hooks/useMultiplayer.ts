@@ -136,11 +136,15 @@ export function useMultiplayer() {
 
   const sendPresence = useCallback((x: number, y: number) => {
     const profile = profileRef.current;
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !profile || !myIdRef.current) return;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !profile) return;
+
+    // If we don't have an ID yet (init not received), send empty string.
+    // The server will assign the correct connection ID.
+    const id = myIdRef.current || "";
 
     const msg: Collaborator & { type: 'presence' } = {
         type: 'presence',
-        id: myIdRef.current,
+        id,
         name: profile.name,
         color: profile.color,
         x,

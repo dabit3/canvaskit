@@ -58,10 +58,8 @@ app.prepare().then(() => {
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit('connection', ws, req);
       });
-    } else {
-        // Close other paths
-        socket.destroy();
     }
+    // Do not destroy other paths (let Next.js handle them, e.g. HMR)
   });
 
   wss.on('connection', (ws) => {
