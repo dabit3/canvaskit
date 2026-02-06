@@ -26,15 +26,41 @@ app.prepare().then(() => {
     }
   });
 
-  // Attach WebSocket Server
-  const wss = new WebSocketServer({ noServer: true });
+  // Attach WebSocket Server with maxPayload enforcement
+  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_SIZE });
 
   server.on('upgrade', (req, socket, head) => {
     const { pathname } = parse(req.url || '/', true);
+
+    // Origin validation
+    // For this demo, we allow localhost and potentially others if needed.
+    // In production, strictly allow only your domain.
+    const origin = req.headers.origin;
+    const allowedOrigins = [
+        `http://localhost:${port}`,
+        `http://${hostname}:${port}`,
+        // Add other origins if necessary
+    ];
+
+    // If origin is present (browsers send it), validate it.
+    // Tools might not send it, but we should be careful.
+    if (origin) {
+        // Simple check for localhost inclusion or exact match
+        const isAllowed = allowedOrigins.some(o => origin === o) || origin.startsWith('http://localhost');
+        if (!isAllowed) {
+            socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+            socket.destroy();
+            return;
+        }
+    }
+
     if (pathname === '/multiplayer') {
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit('connection', ws, req);
       });
+    } else {
+        // Close other paths
+        socket.destroy();
     }
   });
 
@@ -48,22 +74,31 @@ app.prepare().then(() => {
     }
 
     ws.on('message', (data, isBinary) => {
-      // 1. DoS Protection: Check payload size
-      if (data.length > MAX_PAYLOAD_SIZE) {
-        console.warn(`[WS] Payload too large from ${connectionId}. Ignoring.`);
-        return;
-      }
+      // Note: ws.maxPayload handles the hard limit and closes connection if exceeded.
 
-      // 2. Anti-Spoofing: Ensure the message ID matches the connection ID
+      // 2. Anti-Spoofing & Input Validation
       if (!isBinary) {
         try {
           const msg = JSON.parse(data.toString());
+
+          // Enforce ID
           if (msg.id && msg.id !== connectionId) {
-             // Silently correct the ID or ignore.
-             // Here we correct it to ensure the broadcast is truthful about the source.
              msg.id = connectionId;
-             data = JSON.stringify(msg);
+          } else if (!msg.id) {
+             msg.id = connectionId;
           }
+
+          // Sanitize/Validate fields
+          if (msg.type === 'presence') {
+              if (typeof msg.name === 'string') {
+                  msg.name = msg.name.slice(0, 20); // Enforce max length
+              }
+              if (typeof msg.color === 'string') {
+                  msg.color = msg.color.slice(0, 20); // Enforce max length
+              }
+          }
+
+          data = JSON.stringify(msg);
         } catch (e) {
           // Invalid JSON, ignore
           return;

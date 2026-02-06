@@ -23,16 +23,22 @@ export function useMultiplayer() {
 
   // Store collaborators in a ref to avoid re-renders on every message
   const collaboratorsRef = useRef<Map<string, Collaborator>>(new Map());
+  const hasNewData = useRef(false);
 
   // My assigned ID from server
   const myIdRef = useRef<string>("");
+
+  // Keep latest profile in ref to avoid reconnection when it changes
+  const profileRef = useRef<{ name: string; color: string } | null>(null);
 
   useEffect(() => {
     // Initialize profile
     const stored = localStorage.getItem("canvas-profile");
     if (stored) {
       try {
-        setMyProfile(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        setMyProfile(parsed);
+        profileRef.current = parsed;
       } catch {}
     } else {
       const colors = ["#f87171", "#fbbf24", "#34d399", "#60a5fa", "#a78bfa", "#f472b6"];
@@ -41,13 +47,13 @@ export function useMultiplayer() {
         color: colors[Math.floor(Math.random() * colors.length)],
       };
       setMyProfile(newProfile);
+      profileRef.current = newProfile;
       localStorage.setItem("canvas-profile", JSON.stringify(newProfile));
     }
   }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!myProfile) return;
 
     // Use current host for WS
     const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -63,11 +69,7 @@ export function useMultiplayer() {
 
         ws.onmessage = (event) => {
             try {
-                // Determine if data is Blob (binary) or text
-                if (event.data instanceof Blob) {
-                  // If we use binary later
-                  return;
-                }
+                if (event.data instanceof Blob) return;
 
                 const msg = JSON.parse(event.data);
 
@@ -79,8 +81,8 @@ export function useMultiplayer() {
                 if (msg.type === 'presence') {
                     if (msg.id === myIdRef.current) return; // Ignore self
 
-                    // Update the ref only
                     collaboratorsRef.current.set(msg.id, msg);
+                    hasNewData.current = true;
                 }
             } catch {
                 // Ignore
@@ -97,7 +99,10 @@ export function useMultiplayer() {
     // Animation frame loop to sync ref to state at optimal framerate
     let animationFrameId: number;
     const syncState = () => {
-      setCollaborators(new Map(collaboratorsRef.current));
+      if (hasNewData.current) {
+        setCollaborators(new Map(collaboratorsRef.current));
+        hasNewData.current = false;
+      }
       animationFrameId = requestAnimationFrame(syncState);
     };
     animationFrameId = requestAnimationFrame(syncState);
@@ -106,7 +111,7 @@ export function useMultiplayer() {
         wsRef.current?.close();
         cancelAnimationFrame(animationFrameId);
     };
-  }, [myProfile]);
+  }, []); // Empty dependency array -> connection is stable
 
   // Clean up stale collaborators
   useEffect(() => {
@@ -122,26 +127,28 @@ export function useMultiplayer() {
         }
       }
 
-      // If changed, the next requestAnimationFrame will pick it up
-      // or we can force it here if strictly necessary, but the loop handles it.
+      if (changed) {
+        hasNewData.current = true;
+      }
     }, 5000);
     return () => clearInterval(interval);
   }, []);
 
   const sendPresence = useCallback((x: number, y: number) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !myProfile || !myIdRef.current) return;
+    const profile = profileRef.current;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !profile || !myIdRef.current) return;
 
     const msg: Collaborator & { type: 'presence' } = {
         type: 'presence',
-        id: myIdRef.current, // Use the server-assigned ID
-        name: myProfile.name,
-        color: myProfile.color,
+        id: myIdRef.current,
+        name: profile.name,
+        color: profile.color,
         x,
         y,
         lastSeen: Date.now()
     };
     wsRef.current.send(JSON.stringify(msg));
-  }, [myProfile]);
+  }, []); // No dependencies on profileRef.current, it's mutable
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const throttledSendPresence = useCallback(throttle(sendPresence, PRESENCE_THROTTLE), [sendPresence]);
@@ -149,6 +156,7 @@ export function useMultiplayer() {
   const updateProfile = (name: string, color: string) => {
       const newProfile = { name, color };
       setMyProfile(newProfile);
+      profileRef.current = newProfile; // Update mutable ref
       localStorage.setItem("canvas-profile", JSON.stringify(newProfile));
   };
 

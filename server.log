@@ -3,6 +3,6 @@
 > node server.js
 
 > Ready on http://localhost:3000
- GET / 200 in 2.9s (compile: 2.5s, render: 396ms)
- GET / 200 in 282ms (compile: 14ms, render: 268ms)
-erminated
+ GET / 200 in 1177ms (compile: 820ms, render: 358ms)
+ GET / 200 in 148ms (compile: 11ms, render: 137ms)
+minated
