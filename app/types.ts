@@ -173,3 +173,12 @@ export interface HistoryEntry {
   pages: PageData[];
   description: string;
 }
+
+export interface Collaborator {
+  id: string;
+  name: string;
+  color: string;
+  x: number;
+  y: number;
+  lastSeen: number;
+}

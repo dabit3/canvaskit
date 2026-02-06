@@ -10,6 +10,7 @@ import PropertiesPanel from "./PropertiesPanel";
 import Toasts from "./Toasts";
 import ShortcutHelp from "./ShortcutHelp";
 import { fitImageToMaxWidth } from "../utils/imageSizing";
+import { useMultiplayer } from "../hooks/useMultiplayer";
 
 const DB_NAME = "canvaskit";
 const STORE_NAME = "documents";
@@ -64,6 +65,8 @@ export default function Editor() {
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const nodes = useEditorStore((s) => s.nodes);
   const pushHistory = useEditorStore((s) => s.pushHistory);
+
+  const { collaborators, myProfile, updateProfile, updatePresence } = useMultiplayer();
 
   // Push initial history state
   useEffect(() => {
@@ -216,7 +219,11 @@ export default function Editor() {
   return (
     <div className="h-screen w-screen flex flex-col bg-[#1a1a1a] overflow-hidden">
       {/* Toolbar */}
-      <Toolbar />
+      <Toolbar
+        profile={myProfile}
+        onUpdateProfile={updateProfile}
+        collaboratorCount={collaborators.size}
+      />
 
       {/* Main area */}
       <div className="flex-1 flex overflow-hidden">
@@ -228,7 +235,10 @@ export default function Editor() {
         )}
 
         {/* Canvas */}
-        <Canvas />
+        <Canvas
+          collaborators={collaborators}
+          onPointerUpdate={updatePresence}
+        />
 
         {/* Right panel */}
         {showRightPanel && (

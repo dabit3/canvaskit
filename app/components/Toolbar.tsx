@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useEditorStore } from "../store";
 import { ToolType } from "../types";
 import { fitImageToMaxWidth } from "../utils/imageSizing";
+import UserMenu from "./UserMenu";
 
 function ToolIcon({ type }: { type: ToolType }) {
   const s = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -48,7 +49,13 @@ const toolGroups: ToolGroup[] = [
   ],
 ];
 
-export default function Toolbar() {
+interface ToolbarProps {
+  profile: { name: string; color: string } | null;
+  onUpdateProfile: (name: string, color: string) => void;
+  collaboratorCount: number;
+}
+
+export default function Toolbar({ profile, onUpdateProfile, collaboratorCount }: ToolbarProps) {
   const activeTool = useEditorStore((s) => s.activeTool);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
   const documentName = useEditorStore((s) => s.documentName);
@@ -334,6 +341,19 @@ export default function Toolbar() {
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* User Menu */}
+      {profile && (
+        <>
+          <UserMenu
+            name={profile.name}
+            color={profile.color}
+            onUpdate={onUpdateProfile}
+            collaboratorCount={collaboratorCount}
+          />
+          <div className="w-px h-5 bg-white/[0.08] mx-2" />
+        </>
+      )}
 
       {/* Zoom */}
       <div className="relative group">

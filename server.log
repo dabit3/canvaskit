@@ -1,0 +1,7 @@
+
+> personal-design-editor@0.1.0 dev
+> node server.js
+
+> Ready on http://localhost:3000
+ GET / 200 in 580ms (compile: 310ms, render: 270ms)
+ GET / 200 in 87ms (compile: 7ms, render: 81ms)

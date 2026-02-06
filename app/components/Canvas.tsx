@@ -2,7 +2,8 @@
 
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import { useEditorStore } from "../store";
-import { DesignNode, SceneNode, ToolType, TextNode } from "../types";
+import { DesignNode, SceneNode, ToolType, TextNode, Collaborator } from "../types";
+import MultiplayerCursors from "./MultiplayerCursors";
 import {
   renderNode,
   renderDotGrid,
@@ -33,7 +34,12 @@ type InteractionMode =
 const MIN_ZOOM = 0.01;
 const MAX_ZOOM = 256;
 
-export default function Canvas() {
+interface CanvasProps {
+  collaborators?: Map<string, Collaborator>;
+  onPointerUpdate?: (x: number, y: number) => void;
+}
+
+export default function Canvas({ collaborators, onPointerUpdate }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number>(0);
@@ -466,6 +472,11 @@ export default function Canvas() {
       const sx = e.clientX - offset.left;
       const sy = e.clientY - offset.top;
       const world = screenToWorld(sx, sy);
+
+      if (onPointerUpdate) {
+        onPointerUpdate(world.x, world.y);
+      }
+
       const page = pages.find((p) => p.id === currentPageId);
 
       // Update hover + cursor hints for resize/rotate zones
@@ -698,7 +709,7 @@ export default function Canvas() {
         return;
       }
     },
-    [interactionMode, dragStart, initialNodeStates, resizeHandle, screenToWorld, snapLineTo45]
+    [interactionMode, dragStart, initialNodeStates, resizeHandle, screenToWorld, snapLineTo45, onPointerUpdate]
   );
 
   const handleMouseUp = useCallback(
@@ -1312,6 +1323,7 @@ export default function Canvas() {
 
   return (
     <div ref={containerRef} className="relative flex-1 overflow-hidden">
+      {collaborators && <MultiplayerCursors collaborators={collaborators} />}
       <canvas
         ref={canvasRef}
         className="w-full h-full"
