@@ -38,7 +38,7 @@ app.prepare().then(() => {
     const origin = req.headers.origin;
     const allowedOrigins = [
         `http://localhost:${port}`,
-        `http://${hostname}:${port}`,
+        `http://127.0.0.1:${port}`,
         // Add other origins if necessary
     ];
 
