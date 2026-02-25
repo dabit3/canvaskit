@@ -45,8 +45,8 @@ app.prepare().then(() => {
     // If origin is present (browsers send it), validate it.
     // Tools might not send it, but we should be careful.
     if (origin) {
-        // Simple check for localhost inclusion or exact match
-        const isAllowed = allowedOrigins.some(o => origin === o) || origin.startsWith('http://localhost');
+        // Strict origin check — match exact allowed origins only
+        const isAllowed = allowedOrigins.some(o => origin === o);
         if (!isAllowed) {
             socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
             socket.destroy();
@@ -79,12 +79,8 @@ app.prepare().then(() => {
         try {
           const msg = JSON.parse(data.toString());
 
-          // Enforce ID
-          if (msg.id && msg.id !== connectionId) {
-             msg.id = connectionId;
-          } else if (!msg.id) {
-             msg.id = connectionId;
-          }
+          // Always enforce server-assigned ID (anti-spoofing)
+          msg.id = connectionId;
 
           // Sanitize/Validate fields
           if (msg.type === 'presence') {
@@ -94,6 +90,10 @@ app.prepare().then(() => {
               if (typeof msg.color === 'string') {
                   msg.color = msg.color.slice(0, 20); // Enforce max length
               }
+              // Validate coordinates are finite numbers
+              if (typeof msg.x !== 'number' || !isFinite(msg.x)) msg.x = 0;
+              if (typeof msg.y !== 'number' || !isFinite(msg.y)) msg.y = 0;
+              if (typeof msg.lastSeen !== 'number' || !isFinite(msg.lastSeen)) msg.lastSeen = Date.now();
           }
 
           data = JSON.stringify(msg);
@@ -111,11 +111,25 @@ app.prepare().then(() => {
       });
     });
 
+    ws.on('close', () => {
+      // Notify remaining clients that this user left
+      const leaveMsg = JSON.stringify({ type: 'leave', id: connectionId });
+      wss.clients.forEach((client) => {
+        if (client !== ws && client.readyState === 1) {
+          client.send(leaveMsg);
+        }
+      });
+    });
+
     ws.on('error', console.error);
   });
 
-  server.listen(port, (err) => {
-    if (err) throw err;
+  server.on('error', (err) => {
+    console.error('Server error:', err);
+    process.exit(1);
+  });
+
+  server.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
   });
 });

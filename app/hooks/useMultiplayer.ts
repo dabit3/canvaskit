@@ -37,8 +37,19 @@ export function useMultiplayer() {
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        setMyProfile(parsed);
-        profileRef.current = parsed;
+        // Validate stored profile has required fields
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          typeof parsed.name === 'string' &&
+          typeof parsed.color === 'string'
+        ) {
+          setMyProfile(parsed);
+          profileRef.current = parsed;
+        } else {
+          localStorage.removeItem("canvas-profile");
+          throw new Error('Invalid profile data');
+        }
       } catch {}
     } else {
       const colors = ["#f87171", "#fbbf24", "#34d399", "#60a5fa", "#a78bfa", "#f472b6"];
@@ -59,12 +70,17 @@ export function useMultiplayer() {
     const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
     const wsUrl = `${protocol}${window.location.host}/multiplayer`;
 
+    let reconnectAttempts = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    let intentionallyClosed = false;
+
     const connect = () => {
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {
             console.log("Connected to multiplayer server");
+            reconnectAttempts = 0; // Reset on successful connection
         };
 
         ws.onmessage = (event) => {
@@ -75,6 +91,12 @@ export function useMultiplayer() {
 
                 if (msg.type === 'init') {
                   myIdRef.current = msg.id;
+                  return;
+                }
+
+                if (msg.type === 'leave' && typeof msg.id === 'string') {
+                  collaboratorsRef.current.delete(msg.id);
+                  hasNewData.current = true;
                   return;
                 }
 
@@ -90,7 +112,12 @@ export function useMultiplayer() {
         };
 
         ws.onclose = () => {
-             // Reconnect logic could go here
+            if (intentionallyClosed) return;
+            // Exponential backoff: 1s, 2s, 4s, 8s... capped at 30s
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+            reconnectAttempts++;
+            console.log(`WebSocket closed. Reconnecting in ${delay}ms...`);
+            reconnectTimer = setTimeout(connect, delay);
         };
     };
 
@@ -108,6 +135,8 @@ export function useMultiplayer() {
     animationFrameId = requestAnimationFrame(syncState);
 
     return () => {
+        intentionallyClosed = true;
+        if (reconnectTimer) clearTimeout(reconnectTimer);
         wsRef.current?.close();
         cancelAnimationFrame(animationFrameId);
     };

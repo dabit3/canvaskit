@@ -79,6 +79,7 @@ export default function UserMenu({ name, color, onUpdate, collaboratorCount }: U
             {COLORS.map((c) => (
               <button
                 key={c}
+                aria-label={`Select color ${c}`}
                 className={`w-6 h-6 rounded-full border border-white/10 hover:scale-110 transition-transform ${color === c ? 'ring-2 ring-white/50' : ''}`}
                 style={{ backgroundColor: c }}
                 onClick={() => handleColorSelect(c)}
