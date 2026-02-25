@@ -82,6 +82,12 @@ app.prepare().then(() => {
           // Always enforce server-assigned ID (anti-spoofing)
           msg.id = connectionId;
 
+          // Only allow known message types to be broadcast
+          const ALLOWED_BROADCAST_TYPES = ['presence'];
+          if (!ALLOWED_BROADCAST_TYPES.includes(msg.type)) {
+            return; // Drop unknown/dangerous types (e.g. spoofed 'init', 'leave')
+          }
+
           // Sanitize/Validate fields
           if (msg.type === 'presence') {
               if (typeof msg.name === 'string') {
