@@ -48,10 +48,14 @@ export function useMultiplayer() {
           profileRef.current = parsed;
         } else {
           localStorage.removeItem("canvas-profile");
-          throw new Error('Invalid profile data');
+          // Fall through to create a new profile below
         }
-      } catch {}
-    } else {
+      } catch {
+        localStorage.removeItem("canvas-profile");
+      }
+    }
+    // Create a new profile if none was loaded
+    if (!profileRef.current) {
       const colors = ["#f87171", "#fbbf24", "#34d399", "#60a5fa", "#a78bfa", "#f472b6"];
       const newProfile = {
         name: "Guest " + Math.floor(Math.random() * 1000),
