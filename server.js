@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { createServer } = require('http');
-const { parse } = require('url');
 const next = require('next');
 const { WebSocketServer } = require('ws');
 const { randomUUID } = require('crypto');
@@ -17,7 +16,7 @@ const MAX_PAYLOAD_SIZE = 2048; // 2KB
 app.prepare().then(() => {
   const server = createServer(async (req, res) => {
     try {
-      const parsedUrl = parse(req.url, true);
+      const parsedUrl = new URL(req.url, `http://${hostname}:${port}`);
       await handle(req, res, parsedUrl);
     } catch (err) {
       console.error('Error occurred handling', req.url, err);
@@ -30,7 +29,7 @@ app.prepare().then(() => {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_SIZE });
 
   server.on('upgrade', (req, socket, head) => {
-    const { pathname } = parse(req.url || '/', true);
+    const { pathname } = new URL(req.url || '/', `http://${hostname}:${port}`);
 
     // Origin validation
     // For this demo, we allow localhost and potentially others if needed.
@@ -74,41 +73,42 @@ app.prepare().then(() => {
     ws.on('message', (data, isBinary) => {
       // Note: ws.maxPayload handles the hard limit and closes connection if exceeded.
 
-      // 2. Anti-Spoofing & Input Validation
-      if (!isBinary) {
-        try {
-          const msg = JSON.parse(data.toString());
+      // Reject binary messages — only JSON text is expected
+      if (isBinary) return;
 
-          // Always enforce server-assigned ID (anti-spoofing)
-          msg.id = connectionId;
+      // Anti-Spoofing & Input Validation
+      try {
+        const msg = JSON.parse(data.toString());
 
-          // Sanitize/Validate fields
-          if (msg.type === 'presence') {
-              if (typeof msg.name === 'string') {
-                  msg.name = msg.name.slice(0, 20); // Enforce max length
-              }
-              if (typeof msg.color === 'string') {
-                  msg.color = msg.color.slice(0, 20); // Enforce max length
-              }
-              // Validate coordinates are finite numbers
-              if (typeof msg.x !== 'number' || !isFinite(msg.x)) msg.x = 0;
-              if (typeof msg.y !== 'number' || !isFinite(msg.y)) msg.y = 0;
-              if (typeof msg.lastSeen !== 'number' || !isFinite(msg.lastSeen)) msg.lastSeen = Date.now();
+        // Always enforce server-assigned ID (anti-spoofing)
+        msg.id = connectionId;
+
+        // Sanitize/Validate fields
+        if (msg.type === 'presence') {
+            if (typeof msg.name === 'string') {
+                msg.name = msg.name.slice(0, 20); // Enforce max length
+            }
+            if (typeof msg.color === 'string') {
+                msg.color = msg.color.slice(0, 20); // Enforce max length
+            }
+            // Validate coordinates are finite numbers
+            if (typeof msg.x !== 'number' || !isFinite(msg.x)) msg.x = 0;
+            if (typeof msg.y !== 'number' || !isFinite(msg.y)) msg.y = 0;
+            if (typeof msg.lastSeen !== 'number' || !isFinite(msg.lastSeen)) msg.lastSeen = Date.now();
+        }
+
+        const sanitized = JSON.stringify(msg);
+
+        // Broadcast to all other clients
+        wss.clients.forEach((client) => {
+          if (client !== ws && client.readyState === 1) { // WebSocket.OPEN
+            client.send(sanitized);
           }
-
-          data = JSON.stringify(msg);
-        } catch (e) {
-          // Invalid JSON, ignore
-          return;
-        }
+        });
+      } catch (e) {
+        // Invalid JSON, ignore
+        return;
       }
-
-      // Broadcast to all other clients
-      wss.clients.forEach((client) => {
-        if (client !== ws && client.readyState === 1) { // WebSocket.OPEN
-          client.send(data, { binary: isBinary });
-        }
-      });
     });
 
     ws.on('close', () => {

@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { useEditorStore } from "../store";
 import { Collaborator } from "../types";
@@ -9,6 +11,7 @@ const CursorIcon = ({ color }: { color: string }) => (
     viewBox="0 0 16 16"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
     style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.2))" }}
   >
     <path

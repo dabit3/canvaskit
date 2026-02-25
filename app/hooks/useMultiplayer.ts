@@ -5,11 +5,28 @@ import { Collaborator } from "../types";
 function throttle<T extends (...args: any[]) => void>(func: T, limit: number): T {
   let inThrottle: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let lastArgs: any[] | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let lastThis: any;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return function(this: any, ...args: any[]) {
     if (!inThrottle) {
       func.apply(this, args);
       inThrottle = true;
-      setTimeout(() => (inThrottle = false), limit);
+      setTimeout(() => {
+        inThrottle = false;
+        // Fire trailing call if one was queued
+        if (lastArgs) {
+          func.apply(lastThis, lastArgs);
+          lastArgs = null;
+          lastThis = undefined;
+        }
+      }, limit);
+    } else {
+      // Queue the trailing call
+      lastArgs = args;
+      lastThis = this;
     }
   } as T;
 }
@@ -48,10 +65,15 @@ export function useMultiplayer() {
           profileRef.current = parsed;
         } else {
           localStorage.removeItem("canvas-profile");
-          throw new Error('Invalid profile data');
+          // Fall through to generate a new profile below
         }
-      } catch {}
-    } else {
+      } catch {
+        localStorage.removeItem("canvas-profile");
+      }
+    }
+
+    // Generate a new profile if none was loaded
+    if (!profileRef.current) {
       const colors = ["#f87171", "#fbbf24", "#34d399", "#60a5fa", "#a78bfa", "#f472b6"];
       const newProfile = {
         name: "Guest " + Math.floor(Math.random() * 1000),
@@ -118,6 +140,10 @@ export function useMultiplayer() {
             reconnectAttempts++;
             console.log(`WebSocket closed. Reconnecting in ${delay}ms...`);
             reconnectTimer = setTimeout(connect, delay);
+        };
+
+        ws.onerror = (err) => {
+            console.error("WebSocket error:", err);
         };
     };
 
@@ -186,12 +212,12 @@ export function useMultiplayer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const throttledSendPresence = useCallback(throttle(sendPresence, PRESENCE_THROTTLE), [sendPresence]);
 
-  const updateProfile = (name: string, color: string) => {
+  const updateProfile = useCallback((name: string, color: string) => {
       const newProfile = { name, color };
       setMyProfile(newProfile);
       profileRef.current = newProfile; // Update mutable ref
       localStorage.setItem("canvas-profile", JSON.stringify(newProfile));
-  };
+  }, []);
 
   return {
     collaborators,
