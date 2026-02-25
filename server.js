@@ -92,9 +92,13 @@ app.prepare().then(() => {
           if (msg.type === 'presence') {
               if (typeof msg.name === 'string') {
                   msg.name = msg.name.slice(0, 20); // Enforce max length
+              } else {
+                  msg.name = 'Anonymous';
               }
               if (typeof msg.color === 'string') {
                   msg.color = msg.color.slice(0, 20); // Enforce max length
+              } else {
+                  msg.color = '#888888';
               }
               // Validate coordinates are finite numbers
               if (typeof msg.x !== 'number' || !isFinite(msg.x)) msg.x = 0;
