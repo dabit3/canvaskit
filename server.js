@@ -99,7 +99,8 @@ app.prepare().then(() => {
               // Validate coordinates are finite numbers
               if (typeof msg.x !== 'number' || !isFinite(msg.x)) msg.x = 0;
               if (typeof msg.y !== 'number' || !isFinite(msg.y)) msg.y = 0;
-              if (typeof msg.lastSeen !== 'number' || !isFinite(msg.lastSeen)) msg.lastSeen = Date.now();
+              // Always use server timestamp to prevent stale-cleanup bypass
+              msg.lastSeen = Date.now();
           }
 
           data = JSON.stringify(msg);
@@ -107,6 +108,9 @@ app.prepare().then(() => {
           // Invalid JSON, ignore
           return;
         }
+      } else {
+        // Binary messages are not expected by this protocol; drop them
+        return;
       }
 
       // Broadcast to all other clients

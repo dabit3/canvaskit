@@ -85,6 +85,9 @@ export function useMultiplayer() {
         ws.onopen = () => {
             console.log("Connected to multiplayer server");
             reconnectAttempts = 0; // Reset on successful connection
+            // Clear stale collaborators from previous connection
+            collaboratorsRef.current.clear();
+            hasNewData.current = true;
         };
 
         ws.onmessage = (event) => {
